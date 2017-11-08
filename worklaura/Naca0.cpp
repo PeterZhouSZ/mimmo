@@ -119,7 +119,6 @@ void test1(){
     dvector1D tempOrtRbf = setCounter(ortRbf);
     plotDataQUAD("./", "OrthRBF", obj_d, tempOrtRbf, "Orthogonality");
     
-    exit(1);
     /*Devo etrarre i bordi del corpo deformato dovrei estrarre solo il profilo
      */
     MimmoObject * objBord = new MimmoObject(4,2);
@@ -325,6 +324,19 @@ void test1(){
       Q_mod.insert( i, Q[i]);
       T_mod.insert( i,T[i]);
     }
+
+
+
+
+
+
+
+
+
+
+/*
+
+
     //Smoothing considerado le lunghezze modificate
     
 //     std::unordered_map< long int , std::vector<long> >   mapOneRing_interfaces;
@@ -344,6 +356,47 @@ void test1(){
     
     smoothing ( obj_u, idB, T_mod , n, coefficientiModificati, mapOneRing, err_trasl1, flag0, flag1 );			//Smoothing del campo traslazione con lerp, flag1 
     smoothing ( obj_u, idB, Q_mod , n, coefficientiModificati, mapOneRing, err_rot1, flag2,flag1);			//Smoothing del campo rotazione con LERP, flag1
+
+
+
+*/
+
+
+    //MIMMO PROPAGATE FIELD
+
+    //fill  piercedVector of array3 for translation and rotation
+    bitpit::PiercedVector<std::array<double, 3>> Trasl;
+    bitpit::PiercedVector<std::array<double, 3>> Rot;
+    for ( long & i: Q.getIds() ){
+        Trasl.insert( i,T_mod[i].getVector());
+//        std::cout << lnQuat(Q_mod[i]).getVector() << std::endl;
+        Rot.insert( i, lnQuat(Q_mod[i]).getVector());
+    }
+
+
+    PropagateVectorField* propT = new PropagateVectorField();
+    propT->setGeometry(mimmo0->getGeometry());
+    propT->setBoundarySurface(objBord);
+    propT->setBoundaryConditions(Trasl);
+    propT->setPlotInExecution(true);
+    std::cout << "Propagate Translation" << std::endl;
+    propT->exec();
+    Trasl = propT->getField();
+
+    PropagateVectorField* propR = new PropagateVectorField();
+    propR->setGeometry(mimmo0->getGeometry());
+    propR->setBoundarySurface(objBord);
+    propR->setBoundaryConditions(Rot);
+    propR->setPlotInExecution(true);
+    std::cout << "Propagate Rotation" << std::endl;
+    propR->exec();
+    Rot = propR->getField();
+
+    for ( long & i: Q.getIds() ){
+        T_mod[i].setVector(Trasl[i]);
+        Quaternion q(Rot[i]);
+        Q_mod[i] = expQuat(q);
+    }
 
     plotQuaternionField ("./", "QuatsfNaca_n=50", obj_u, Q_mod, T_mod);	//Plotto idue campi di quaternioni   
 

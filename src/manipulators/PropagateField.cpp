@@ -108,7 +108,7 @@ void PropagateField::swap(PropagateField & x) noexcept {
 //     std::swap(m_dumping, x.m_dumping);
     m_dumping.swap(x.m_dumping);
     std::swap(m_radius, x.m_radius);
-    BaseManipulation::swap(x);
+//    BaseManipulation::swap(x);
 }
 
 /*! 
@@ -117,8 +117,8 @@ void PropagateField::swap(PropagateField & x) noexcept {
 void
 PropagateField::buildPorts(){
     bool built = true;
-    built = (built && createPortIn<MimmoObject*, PropagateField>(this, &PropagateField::setGeometry, M_GEOM, true));
-    built = (built && createPortIn<MimmoObject*, PropagateField>(this, &PropagateField::setBoundarySurface, M_GEOM2));
+//    built = (built && createPortIn<MimmoObject*, PropagateField>(this, &PropagateField::setGeometry, M_GEOM, true));
+//    built = (built && createPortIn<MimmoObject*, PropagateField>(this, &PropagateField::setBoundarySurface, M_GEOM2));
     m_arePortsBuilt = built;
 };
 
@@ -454,8 +454,8 @@ void PropagateVectorField::swap(PropagateVectorField & x) noexcept {
 void
 PropagateVectorField::buildPorts(){
     bool built = true;
-    built = (built && createPortIn<dmpvecarr3E, PropagateVectorField>(this, &PropagateVectorField::setBoundaryConditions, M_GDISPLS));
-    built = (built && createPortOut<dmpvecarr3E, PropagateVectorField>(this, &PropagateVectorField::getField, M_GDISPLS));
+//    built = (built && createPortIn<dmpvecarr3E, PropagateVectorField>(this, &PropagateVectorField::setBoundaryConditions, M_GDISPLS));
+//    built = (built && createPortOut<dmpvecarr3E, PropagateVectorField>(this, &PropagateVectorField::getField, M_GDISPLS));
     PropagateField::buildPorts();
     m_arePortsBuilt = built;
 };
@@ -495,12 +495,12 @@ PropagateVectorField::computeDumpingFunction(){
 
     if (m_geometry == NULL ) return;
 
-    if (m_bc.getGeometry() != m_bsurface){
-        throw std::runtime_error (m_name + " : boundary conditions not linked to boundary surface");
-    }
-    if (m_bc.getDataLocation() != mimmo::MPVLocation::POINT){
-        throw std::runtime_error (m_name + " : boundary conditions not defined on points");
-    }
+//    if (m_bc.getGeometry() != m_bsurface){
+//        throw std::runtime_error (m_name + " : boundary conditions not linked to boundary surface");
+//    }
+//    if (m_bc.getDataLocation() != mimmo::MPVLocation::POINT){
+//        throw std::runtime_error (m_name + " : boundary conditions not defined on points");
+//    }
 
     bitpit::PatchKernel * patch_ = getGeometry()->getPatch();
 
@@ -538,7 +538,8 @@ PropagateVectorField::computeDumpingFunction(){
         for (auto const & vertex : m_bsurface->getVertices()){
             ID = vertex.getId();
             if (norm2(m_bc[ID]) >= 1.0e-12){
-                activeBoundary->addVertex(vertex, ID);
+                point = vertex.getCoords();
+                activeBoundary->addVertex(point, ID);
             }
         }
         for (auto const & cell : m_bsurface->getCells()){
@@ -557,13 +558,16 @@ PropagateVectorField::computeDumpingFunction(){
             }
         }
         activeBoundary->buildAdjacencies();
-        activeBoundary->buildSkdTree();
-        bitpit::SurfaceSkdTree* tree = static_cast<bitpit::SurfaceSkdTree*>(activeBoundary->getSkdTree());
+        activeBoundary->buildBvTree();
+        BvTree* tree = (activeBoundary->getBvTree());
 
         for (auto const & vertex : patch_->getVertices()){
             ID = vertex.getId();
             point = vertex.getCoords();
-            dist = max(1.0e-08, tree->evalPointDistance(point));
+//            dist = max(1.0e-08, tree->evalPointDistance(point));
+            long id;
+            double r = 1.0e+18;
+            dist = std::max(1.0e-08, bvTreeUtils::distance(&point, tree, id, r));
             val = std::max(1.0, std::pow((maxd/dist), m_dumpingFactor));
             m_dumping.insert(ID, val);
         }
@@ -636,8 +640,8 @@ PropagateVectorField::solveSmoothing(int nstep){
         }// end step
         (*m_log)<< m_name<<" ends field propagation."<<std::endl;
 
-        m_field.setDataLocation(MPVLocation::POINT);
-        m_field.setGeometry(getGeometry());
+//        m_field.setDataLocation(MPVLocation::POINT);
+//        m_field.setGeometry(getGeometry());
 
     }
 
@@ -738,8 +742,8 @@ PropagateVectorField::solveLaplace(){
 
     }
 
-    m_field.setDataLocation(MPVLocation::POINT);
-    m_field.setGeometry(getGeometry());
+//    m_field.setDataLocation(MPVLocation::POINT);
+//    m_field.setGeometry(getGeometry());
 
 }
 
@@ -784,7 +788,7 @@ PropagateVectorField::plotOptionalResults(){
 void
 PropagateVectorField::apply(){
     if (getGeometry() == NULL) return;
-    if (getGeometry()->isEmpty() || m_field.isEmpty()) return;
+    if (getGeometry()->isEmpty() || m_field.size() == 0) return;
     darray3E vertexcoords;
     long int ID;
     for (const auto & vertex : m_geometry->getVertices()){
@@ -989,8 +993,8 @@ void PropagateScalarField::swap(PropagateScalarField & x) noexcept {
 void
 PropagateScalarField::buildPorts(){
     bool built = true;
-    built = (built && createPortIn<dmpvector1D, PropagateScalarField>(this, &PropagateScalarField::setBoundaryConditions, M_FILTER));
-    built = (built && createPortOut<dmpvector1D, PropagateScalarField>(this, &PropagateScalarField::getField, M_FILTER));
+//    built = (built && createPortIn<dmpvector1D, PropagateScalarField>(this, &PropagateScalarField::setBoundaryConditions, M_FILTER));
+//    built = (built && createPortOut<dmpvector1D, PropagateScalarField>(this, &PropagateScalarField::getField, M_FILTER));
     PropagateField::buildPorts();
     m_arePortsBuilt = built;
 };
@@ -1030,12 +1034,12 @@ PropagateScalarField::computeDumpingFunction(){
 
     if (m_geometry == NULL ) return;
 
-    if (m_bc.getGeometry() != m_bsurface){
-        throw std::runtime_error (m_name + " : boundary conditions not linked to boundary surface");
-    }
-    if (m_bc.getDataLocation() != mimmo::MPVLocation::POINT){
-        throw std::runtime_error (m_name + " : boundary conditions not defined on points");
-    }
+//    if (m_bc.getGeometry() != m_bsurface){
+//        throw std::runtime_error (m_name + " : boundary conditions not linked to boundary surface");
+//    }
+//    if (m_bc.getDataLocation() != mimmo::MPVLocation::POINT){
+//        throw std::runtime_error (m_name + " : boundary conditions not defined on points");
+//    }
 
     bitpit::PatchKernel * patch_ = getGeometry()->getPatch();
 
@@ -1072,7 +1076,8 @@ PropagateScalarField::computeDumpingFunction(){
         for (auto const & vertex : m_bsurface->getVertices()){
             ID = vertex.getId();
             if (std::abs(m_bc[ID]) >= 1.0e-12){
-                activeBoundary->addVertex(vertex, ID);
+                point = vertex.getCoords();
+                activeBoundary->addVertex(point, ID);
             }
         }
         for (auto const & cell : m_bsurface->getCells()){
@@ -1091,13 +1096,16 @@ PropagateScalarField::computeDumpingFunction(){
             }
         }
         activeBoundary->buildAdjacencies();
-        activeBoundary->buildSkdTree();
-        bitpit::SurfaceSkdTree* tree = static_cast<bitpit::SurfaceSkdTree*>(activeBoundary->getSkdTree());
+        activeBoundary->buildBvTree();
+        BvTree* tree = (activeBoundary->getBvTree());
 
         for (auto const & vertex : patch_->getVertices()){
             ID = vertex.getId();
             point = vertex.getCoords();
-            dist = max(1.0e-08, tree->evalPointDistance(point));
+//            dist = max(1.0e-08, tree->evalPointDistance(point));
+            long id;
+            double r = 1.0e+18;
+            dist = std::max(1.0e-08, bvTreeUtils::distance(&point, tree, id, r));
             val = std::max(1.0, std::pow((maxd/dist), m_dumpingFactor));
             m_dumping.insert(ID, val);
         }
@@ -1168,8 +1176,8 @@ PropagateScalarField::solveSmoothing(int nstep){
         }// end step
         (*m_log)<< m_name<<" ends field propagation."<<std::endl;
 
-        m_field.setDataLocation(MPVLocation::POINT);
-        m_field.setGeometry(getGeometry());
+//        m_field.setDataLocation(MPVLocation::POINT);
+//        m_field.setGeometry(getGeometry());
     }
 
     m_conn.clear();
@@ -1258,8 +1266,8 @@ PropagateScalarField::solveLaplace(){
 
     }
 
-    m_field.setDataLocation(MPVLocation::POINT);
-    m_field.setGeometry(getGeometry());
+//    m_field.setDataLocation(MPVLocation::POINT);
+//    m_field.setGeometry(getGeometry());
 
 }
 

@@ -28,6 +28,15 @@
 #include "system.hpp"
 
 namespace mimmo{
+
+typedef bitpit::PiercedVector<bool> bmpvector1D;
+typedef bitpit::PiercedVector<long> limpvector1D;
+typedef bitpit::PiercedVector<double> dmpvector1D;
+typedef bitpit::PiercedVector<std::vector<long>> limpvector2D;
+typedef bitpit::PiercedVector<std::vector<double>> dmpvector2D;
+typedef bitpit::PiercedVector<std::array<double,3>> dmpvecarr3E;
+
+
 /*!
  * \class PropagateField
  * \ingroup core
@@ -345,13 +354,13 @@ private:
 
 };
 
-REGISTER_PORT(M_GEOM, MC_SCALAR, MD_MIMMO_,__PROPAGATEFIELD_HPP__)
-REGISTER_PORT(M_GEOM2, MC_SCALAR, MD_MIMMO_,__PROPAGATEFIELD_HPP__)
-REGISTER_PORT(M_FILTER, MC_MPVECTOR, MD_FLOAT,__PROPAGATEFIELD_HPP__)
-REGISTER_PORT(M_GDISPLS, MC_MPVECARR3, MD_FLOAT,__PROPAGATEFIELD_HPP__)
-
-REGISTER(BaseManipulation, PropagateScalarField, "mimmo.PropagateScalarField")
-REGISTER(BaseManipulation, PropagateVectorField, "mimmo.PropagateVectorField")
+//REGISTER_PORT(M_GEOM, MC_SCALAR, MD_MIMMO_,__PROPAGATEFIELD_HPP__)
+//REGISTER_PORT(M_GEOM2, MC_SCALAR, MD_MIMMO_,__PROPAGATEFIELD_HPP__)
+//REGISTER_PORT(M_FILTER, MC_MPVECTOR, MD_FLOAT,__PROPAGATEFIELD_HPP__)
+//REGISTER_PORT(M_GDISPLS, MC_MPVECARR3, MD_FLOAT,__PROPAGATEFIELD_HPP__)
+//
+//REGISTER(BaseManipulation, PropagateScalarField, "mimmo.PropagateScalarField")
+//REGISTER(BaseManipulation, PropagateVectorField, "mimmo.PropagateVectorField")
 
 };
 
