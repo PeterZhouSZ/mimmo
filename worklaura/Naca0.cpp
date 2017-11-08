@@ -379,6 +379,8 @@ void test1(){
     propT->setBoundarySurface(objBord);
     propT->setBoundaryConditions(Trasl);
     propT->setPlotInExecution(true);
+//    propT->setDumpingFactor(4.);
+//    propT->setDumpingRadius(200.);
     std::cout << "Propagate Translation" << std::endl;
     propT->exec();
     Trasl = propT->getField();
@@ -388,6 +390,8 @@ void test1(){
     propR->setBoundarySurface(objBord);
     propR->setBoundaryConditions(Rot);
     propR->setPlotInExecution(true);
+//    propR->setDumpingFactor(4.);
+//    propR->setDumpingRadius(200.);
     std::cout << "Propagate Rotation" << std::endl;
     propR->exec();
     Rot = propR->getField();
@@ -400,11 +404,6 @@ void test1(){
 
     plotQuaternionField ("./", "QuatsfNaca_n=50", obj_u, Q_mod, T_mod);	//Plotto idue campi di quaternioni   
 
-    //plotting quaterniorns
-    bitpit::PiercedVector<double> Ort_mod = evalCellOrth(obj_u);
-    dvector1D tempOrth_mod = setCounter(Ort_mod);
-    plotDataQUAD("./", "Orth0Naca_err_n=50", obj_u, tempOrth_mod, "Orthogonality");
-
     
     //Deforming obj_u
     for (bitpit::Vertex &vv : obj_u->getVertices()){
@@ -413,7 +412,13 @@ void test1(){
       obj_u->modifyVertex(vv_round, vv.getId());
     }
     obj_u->getPatch()->write("Deformation_err_n=50");
-   
+
+    //plotting quaterniorns
+    bitpit::PiercedVector<double> Ort_mod = evalCellOrth(obj_u);
+    dvector1D tempOrth_mod = setCounter(Ort_mod);
+    plotDataQUAD("./", "Orth0Naca_err_n=50", obj_u, tempOrth_mod, "Orthogonality");
+
+
     delete objBord;
     delete obj_round;
     delete mimmo0;
