@@ -363,16 +363,14 @@ void test1(){
 
 
     //MIMMO PROPAGATE FIELD
-
+    {
     //fill  piercedVector of array3 for translation and rotation
     bitpit::PiercedVector<std::array<double, 3>> Trasl;
     bitpit::PiercedVector<std::array<double, 3>> Rot;
     for ( long & i: Q.getIds() ){
         Trasl.insert( i,T_mod[i].getVector());
-//        std::cout << lnQuat(Q_mod[i]).getVector() << std::endl;
         Rot.insert( i, lnQuat(Q_mod[i]).getVector());
     }
-
 
     PropagateVectorField* propT = new PropagateVectorField();
     propT->setGeometry(mimmo0->getGeometry());
@@ -402,9 +400,13 @@ void test1(){
         Q_mod[i] = expQuat(q);
     }
 
+    delete propT;
+    delete propR;
+
+    }
+
     plotQuaternionField ("./", "QuatsfNaca_n=50", obj_u, Q_mod, T_mod);	//Plotto idue campi di quaternioni   
 
-    
     //Deforming obj_u
     for (bitpit::Vertex &vv : obj_u->getVertices()){
       Quaternion P(vv.getCoords());
