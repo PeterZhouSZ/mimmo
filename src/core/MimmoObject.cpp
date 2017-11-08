@@ -31,6 +31,8 @@ using namespace bitpit;
 
 namespace mimmo{
 
+int MimmoObject::sm_MOCounter(1);
+
 /*!
 * Default constructor of MimmoObject.
 * It requires a int flag identifying the type of mesh meant to be created:
@@ -46,24 +48,26 @@ MimmoObject::MimmoObject(int type, short int dimension){
     
     m_type = max(type,1);
     m_dimension = 0;
-    const int id = 0;
+    sm_MOCounter++;
     if (m_type == 2){
         m_dimension = (short)min((int)dimension,3);
         if (m_dimension < 1) m_dimension=3;
-        m_patch = new VolUnstructured(id, m_dimension);
-        dynamic_cast<VolUnstructured*>(m_patch)->setExpert(true);
+        m_patch = std::move(std::unique_ptr<PatchKernel>(new VolUnstructured(m_dimension)));
+    }else if(m_type == 4){
+        m_patch = std::move(std::unique_ptr<PatchKernel>(new SurfUnstructured(1,3)));
     }else{
-        m_patch = new SurfUnstructured(id);
-        dynamic_cast<SurfUnstructured*>(m_patch)->setExpert(true);
+        m_patch = std::move(std::unique_ptr<PatchKernel>(new SurfUnstructured(2,3)));
     }
     m_internalPatch = true;
-    m_bvTree.setPatch(m_patch);
+    m_extpatch = NULL;
+    m_bvTree.setPatch(getPatch());
     m_bvTreeBuilt = false;
     m_kdTreeBuilt = false;
     m_bvTreeSupported = (m_type != 3);
     m_bvTreeSync = false;
     m_kdTreeSync = false;
     m_AdjBuilt = false;
+    m_IntBuilt = false;
     m_log = &bitpit::log::cout(MIMMO_LOG_FILE);
 }
 
@@ -89,17 +93,19 @@ MimmoObject::MimmoObject(int type, dvecarr3E & vertex, ivector2D * connectivity,
     m_type = max(1,type);
     m_dimension = 0;
     m_internalPatch = true;
-    const int id = 0;
+    m_extpatch = NULL;
+
+    sm_MOCounter++;
     if (m_type == 2){
         m_dimension = (short)min((int)dimension,3);
         if (m_dimension < 1) m_dimension=3;
-        m_patch = new VolUnstructured(id, m_dimension);
-        dynamic_cast<VolUnstructured*> (m_patch)->setExpert(true);
+        m_patch = std::move(std::unique_ptr<PatchKernel>(new VolUnstructured(m_dimension)));
+    }else if(m_type == 4){
+        m_patch = std::move(std::unique_ptr<PatchKernel>(new SurfUnstructured(1,3)));
     }else{
-        m_patch = new SurfUnstructured(id);
-        dynamic_cast<SurfUnstructured*> (m_patch)->setExpert(true);
+        m_patch = std::move(std::unique_ptr<PatchKernel>(new SurfUnstructured(2,3)));
     }
-    
+
     bitpit::ElementType eltype = bitpit::ElementType::UNDEFINED;
     int sizeVert, sizeCell;
     
@@ -167,13 +173,14 @@ MimmoObject::MimmoObject(int type, dvecarr3E & vertex, ivector2D * connectivity,
             (*m_log)<<"Proceeding as Point Cloud geometry"<<std::endl;
         }	
     }
-    m_bvTree.setPatch(m_patch);
+    m_bvTree.setPatch(getPatch());
     m_bvTreeBuilt = false;
     m_kdTreeBuilt = false;
     m_bvTreeSupported = (m_type != 3);
     m_bvTreeSync = false;
     m_kdTreeSync = false;
     m_AdjBuilt = false;
+    m_IntBuilt = false;
     m_log = &bitpit::log::cout(MIMMO_LOG_FILE);
 };
 
@@ -200,7 +207,7 @@ MimmoObject::~MimmoObject(){
  * Copy constructor of MimmoObject. 
  */
 MimmoObject::MimmoObject(const MimmoObject & other){
-    m_patch = NULL;
+
     *this = other;
 };
 
@@ -214,11 +221,8 @@ MimmoObject::MimmoObject(const MimmoObject & other){
 MimmoObject & MimmoObject::operator=(const MimmoObject & other){
     m_type          = other.m_type;
     m_dimension     = other.m_dimension; 
-    if(m_patch != NULL){
-        if (m_internalPatch)    delete m_patch;
-        m_patch = NULL;
-    }
-    m_patch         = other.m_patch;
+    m_patch.reset(nullptr);
+    m_extpatch      = other.m_extpatch;
     m_internalPatch = false;
     
     m_mapData       = other.m_mapData;
@@ -233,10 +237,12 @@ MimmoObject & MimmoObject::operator=(const MimmoObject & other){
     m_bvTreeSync        = other.m_bvTreeSync;
     m_kdTreeSync        = other.m_kdTreeSync;
 
+    m_bvTree.setPatch(getPatch());
     if(m_bvTreeSupported && m_bvTreeBuilt)  buildBvTree();
     if(m_kdTreeBuilt)   buildKdTree();
 
     m_AdjBuilt = other.m_AdjBuilt;
+    m_IntBuilt = other.m_IntBuilt;
 
     return *this;
 };
@@ -247,28 +253,7 @@ MimmoObject & MimmoObject::operator=(const MimmoObject & other){
  * if it was internally created.
  */
 void
-MimmoObject::clear(){
-    m_type=1;
-    m_dimension = 0;
-    if(m_patch != NULL){
-        if (m_internalPatch)    delete m_patch;
-        m_patch = NULL;
-    }    
-    m_mapData.clear();
-    m_mapCell.clear();
-    m_mapDataInv.clear();
-    m_mapCellInv.clear();
-    m_pidsType.clear();
-    m_bvTree.clean();
-    cleanKdTree();
-    m_bvTreeBuilt = false;
-    m_kdTreeBuilt = false;
-    m_bvTreeSupported = true;
-    m_bvTreeSync = false;
-    m_kdTreeSync = false;
-    m_AdjBuilt = false;
-
-};
+MimmoObject::clear(){}
 
 /*!
  * Is the object empty?
@@ -317,7 +302,7 @@ MimmoObject::getDimension(){
  */
 long
 MimmoObject::getNVertex() const {
-    return m_patch->getVertexCount();
+    return getPatch()->getVertexCount();
 };
 
 /*!
@@ -326,7 +311,7 @@ MimmoObject::getNVertex() const {
  */
 long
 MimmoObject::getNCells() const {
-    return m_patch->getCellCount();
+    return getPatch()->getCellCount();
 };
 
 /*!
@@ -337,7 +322,7 @@ dvecarr3E
 MimmoObject::getVertexCoords(){
     dvecarr3E result(getNVertex());
     int  i = 0;
-    for (auto & vertex : m_patch->getVertices()){
+    for (auto & vertex : getPatch()->getVertices()){
         result[i] = vertex.getCoords();
         ++i;
     }
@@ -353,7 +338,7 @@ MimmoObject::getVertexCoords(){
 darray3E
 MimmoObject::getVertexCoords(long i){
     if(!(getVertices().exists(i)))	return darray3E({{1.e18,1.e18,1.e18}});
-    return 	m_patch->getVertexCoords(i);
+    return 	getPatch()->getVertexCoords(i);
 };
 
 /*!
@@ -363,7 +348,7 @@ MimmoObject::getVertexCoords(long i){
  */
 bitpit::PiercedVector<bitpit::Vertex> &
 MimmoObject::getVertices(){
-    return m_patch->getVertices();
+    return getPatch()->getVertices();
 }
 
 /*!
@@ -373,7 +358,7 @@ MimmoObject::getVertices(){
  */
 const bitpit::PiercedVector<bitpit::Vertex> &
 MimmoObject::getVertices() const {
-    return m_patch->getVertices();
+    return getPatch()->getVertices();
 }
 
 /*!
@@ -433,7 +418,7 @@ MimmoObject::getCellConnectivity(long i){
     if (isEmpty()) 					return livector1D(0);
     if (!(getCells().exists(i)))	return livector1D(0);	
 
-    bitpit::Cell & cell = m_patch->getCell(i); 
+    bitpit::Cell & cell = getPatch()->getCell(i); 
     int np = cell.getVertexCount();
     livector1D connecti(np);
     auto locconn = cell.getConnect();
@@ -450,7 +435,7 @@ MimmoObject::getCellConnectivity(long i){
  */
 bitpit::PiercedVector<bitpit::Cell> &
 MimmoObject::getCells(){
-    return m_patch->getCells();
+    return getPatch()->getCells();
 }
 
 /*!
@@ -460,7 +445,7 @@ MimmoObject::getCells(){
  */
 const bitpit::PiercedVector<bitpit::Cell> &
 MimmoObject::getCells()  const{
-    return m_patch->getCells();
+    return getPatch()->getCells();
 }
 
 /*!
@@ -468,7 +453,17 @@ MimmoObject::getCells()  const{
  */
 PatchKernel*
 MimmoObject::getPatch(){
-    return m_patch;
+   	if(m_internalPatch) return m_patch.get();
+	else  return m_extpatch;
+};
+
+/*!
+ * \return pointer to bitpit::PatchKernel structure hold by the class.
+ */
+const PatchKernel*
+MimmoObject::getPatch()const {
+   	if(m_internalPatch) return m_patch.get();
+	else  return m_extpatch;
 };
 
 /*!
@@ -613,7 +608,7 @@ MimmoObject::getPID() {
  */
 bool
 MimmoObject::isBvTreeBuilt(){
-    if (!m_bvTreeBuilt || !m_bvTreeSupported) return(false);
+    if (!m_bvTreeSupported) return(false);
     return (isBvTreeSync());
 }
 
@@ -650,7 +645,7 @@ MimmoObject::getKdTree(){
  */
 bool
 MimmoObject::isBvTreeSync(){
-    if (!m_bvTreeBuilt || !m_bvTreeSupported) return(false);
+    if (!m_bvTreeSupported) return(false);
     return (m_bvTreeSync);
 }
 
@@ -720,15 +715,15 @@ MimmoObject::setVertices(const bitpit::PiercedVector<bitpit::Vertex> & vertices)
 bool
 MimmoObject::addVertex(const darray3E & vertex, const long idtag){
     if (isEmpty()) return false;
-    if(idtag != bitpit::Vertex::NULL_ID && m_patch->getVertices().exists(idtag))	return false;
+    if(idtag != bitpit::Vertex::NULL_ID && getPatch()->getVertices().exists(idtag))	return false;
     long checkedID;
     
     bitpit::PatchKernel::VertexIterator it;
     if(idtag == bitpit::Vertex::NULL_ID){
-        it = m_patch->addVertex(vertex);
+        it = getPatch()->addVertex(vertex);
         checkedID = it->getId();
     }else{
-        it =m_patch->addVertex(vertex, idtag);
+        it =getPatch()->addVertex(vertex, idtag);
         checkedID = idtag;
     }
     
@@ -739,6 +734,8 @@ MimmoObject::addVertex(const darray3E & vertex, const long idtag){
     m_bvTreeSync = false;
     m_kdTreeSync = false;
     m_AdjBuilt = false;
+    m_IntBuilt = false;
+
     return true;
 };
 
@@ -753,7 +750,7 @@ bool
 MimmoObject::modifyVertex(const darray3E & vertex, long id){
     if (isEmpty()) return false;
     if(!(getVertices().exists(id)))	return false;
-    bitpit::Vertex &vert = m_patch->getVertex(id);
+    bitpit::Vertex &vert = getPatch()->getVertex(id);
     vert.setCoords(vertex);
     m_bvTreeSync = false;
     m_kdTreeSync = false;
@@ -828,7 +825,7 @@ bool
 MimmoObject::addConnectedCell(const livector1D & conn, bitpit::ElementType type, long idtag){
 
     if (isEmpty() || conn.empty() || !m_bvTreeSupported) return false;
-    if(idtag != bitpit::Cell::NULL_ID && m_patch->getCells().exists(idtag)) return false;
+    if(idtag != bitpit::Cell::NULL_ID && getPatch()->getCells().exists(idtag)) return false;
     
     int sizeElement = checkCellType(type); 
     if(sizeElement < 0)  return false;
@@ -840,10 +837,10 @@ MimmoObject::addConnectedCell(const livector1D & conn, bitpit::ElementType type,
     
     long checkedID;
     if(idtag == bitpit::Cell::NULL_ID){
-        it = m_patch->addCell(type, true, conn_dum);
+        it = getPatch()->addCell(type, true, conn_dum);
         checkedID = it->getId();
     }else{
-        it = m_patch->addCell(type, true,conn_dum, idtag);
+        it = getPatch()->addCell(type, true,conn_dum, idtag);
         checkedID = idtag;
     }
     
@@ -855,6 +852,8 @@ MimmoObject::addConnectedCell(const livector1D & conn, bitpit::ElementType type,
     m_bvTreeBuilt = false;
     m_bvTreeSync = false;
     m_AdjBuilt = false;
+    m_IntBuilt = false;
+
     return true;
 };
 
@@ -878,7 +877,7 @@ bool
 MimmoObject::addConnectedCell(const livector1D & conn, bitpit::ElementType type, short PID, long idtag){
     
     if (isEmpty() || conn.empty() || !m_bvTreeSupported) return false;
-    if(idtag != bitpit::Cell::NULL_ID && m_patch->getCells().exists(idtag)) return false;
+    if(idtag != bitpit::Cell::NULL_ID && getPatch()->getCells().exists(idtag)) return false;
     
     int sizeElement = checkCellType(type); 
     if(sizeElement < 0)  return false;
@@ -890,7 +889,7 @@ MimmoObject::addConnectedCell(const livector1D & conn, bitpit::ElementType type,
     
     long checkedID;
     if(idtag == bitpit::Cell::NULL_ID){
-        it = m_patch->addCell(type, true, conn_dum);
+        it = getPatch()->addCell(type, true, conn_dum);
         checkedID = it->getId();
     }else{
         it = m_patch->addCell(type, true,conn_dum, idtag);
@@ -904,6 +903,8 @@ MimmoObject::addConnectedCell(const livector1D & conn, bitpit::ElementType type,
     m_bvTreeBuilt = false;
     m_bvTreeSync = false;
     m_AdjBuilt = false;
+    m_IntBuilt = false;
+
     return true;
 };
 
@@ -923,22 +924,24 @@ MimmoObject::setPatch(int type, PatchKernel* geometry){
     m_type 			= type;
     m_dimension = 0;
     if(m_type == 2) m_dimension = geometry->getDimension();
-    m_patch 		= geometry;
+    m_extpatch 		= geometry;
     m_internalPatch = false;
-    
+    m_patch.reset(nullptr);
     setMapData();
 
     m_pidsType.clear();
 
-    if(m_patch->getCellCount() != 0){
+    if(getPatch()->getCellCount() != 0){
         m_bvTreeSupported = true;
-        m_bvTree.setPatch(m_patch);
+        m_bvTree.setPatch(getPatch());
         
         for(auto & cell : geometry->getCells()){
             m_pidsType.insert(cell.getPID());
         }
         m_AdjBuilt = false;
-    }	
+        m_IntBuilt = false;
+
+    }
     m_bvTreeBuilt = false;
     m_kdTreeBuilt = false;
     m_bvTreeSync = false;
@@ -962,9 +965,9 @@ MimmoObject::setMapData(){
     m_mapDataInv.clear();
     
     PatchKernel::VertexIterator it;
-    PatchKernel::VertexIterator itend = m_patch->vertexEnd();
+    PatchKernel::VertexIterator itend = getPatch()->vertexEnd();
     int i = 0;
-    for (it = m_patch->vertexBegin(); it != itend; ++it){
+    for (it = getPatch()->vertexBegin(); it != itend; ++it){
         m_mapData[i] = it->getId();
         m_mapDataInv[ it->getId()] = i;
         i++;
@@ -986,10 +989,10 @@ MimmoObject::setMapCell(){
     m_mapCellInv.clear();
     
     PatchKernel::CellIterator it;
-    PatchKernel::CellIterator itend = m_patch->cellEnd();
+    PatchKernel::CellIterator itend = getPatch()->cellEnd();
     
     int i = 0;
-    for (it = m_patch->cellBegin(); it != itend; ++it){
+    for (it = getPatch()->cellBegin(); it != itend; ++it){
         m_mapCell[i] = it->getId();
         m_mapCellInv[ it->getId()] = i;
         i++;
@@ -1056,7 +1059,6 @@ MimmoObject::setPIDCell(long id, short pid){
  * \param[in] other MimmoObject class .
  */
 void MimmoObject::setSOFTCopy(const MimmoObject * other){
-    clear();
     *this = *other; 
 };
 
@@ -1068,19 +1070,27 @@ void MimmoObject::setSOFTCopy(const MimmoObject * other){
  * \param[in] other MimmoObject class.
  */
 void MimmoObject::setHARDCopy(const MimmoObject * other){
-    clear();
+    m_mapData.clear();
+    m_mapDataInv.clear();
+    m_mapCell.clear();
+    m_mapCellInv.clear();
+    m_bvTree.clean();
+    cleanKdTree();
+
     m_type      = other->m_type;
     m_dimension = other->m_dimension; 
     m_internalPatch = true;
-    const int id = 0;
+    m_extpatch = NULL;
+    sm_MOCounter++;
     if (m_type == 2){
-        m_patch = new VolUnstructured(id, m_dimension);
-        dynamic_cast<VolUnstructured*> (m_patch)->setExpert(true);
+        m_dimension = other->m_dimension;
+        m_patch = std::move(std::unique_ptr<PatchKernel>(new VolUnstructured(m_dimension)));
+    }else if(m_type == 4){
+        m_patch = std::move(std::unique_ptr<PatchKernel>(new SurfUnstructured(1,3)));
     }else{
-        m_patch = new SurfUnstructured(id);
-        dynamic_cast<SurfUnstructured*> (m_patch)->setExpert(true);
+        m_patch = std::move(std::unique_ptr<PatchKernel>(new SurfUnstructured(2,3)));
     }
-    
+
     //copy data 
     const bitpit::PiercedVector<bitpit::Vertex> & pvert = other->getVertices();
     setVertices(pvert);
@@ -1098,7 +1108,9 @@ void MimmoObject::setHARDCopy(const MimmoObject * other){
     m_bvTreeSync = true;
     m_kdTreeSync = true;
 
-    m_AdjBuilt = other->m_AdjBuilt;;
+    m_AdjBuilt = other->m_AdjBuilt;
+    m_IntBuilt = other->m_IntBuilt;
+
 
     //it's all copied(maps are update in the loops, pids if exists), trees are rebuilt and sync'ed is they must be
 };
@@ -1110,8 +1122,8 @@ void MimmoObject::setHARDCopy(const MimmoObject * other){
 bool
 MimmoObject::cleanGeometry(){
     if (isEmpty()) return false;
-    m_patch->deleteCoincidentVertices();
-    if(m_bvTreeSupported)	m_patch->deleteOrphanVertices();
+    getPatch()->deleteCoincidentVertices();
+    if(m_bvTreeSupported)	getPatch()->deleteOrphanVertices();
     
     setMapData();
     setMapCell();
@@ -1120,6 +1132,7 @@ MimmoObject::cleanGeometry(){
     m_bvTreeSync = false;
     m_bvTreeSync = false;
     m_AdjBuilt = false;
+    m_IntBuilt = false;
     return true;
 };
 
@@ -1137,7 +1150,7 @@ livector1D MimmoObject::getVertexFromCellList(livector1D cellList){
     //get conn from each cell of the list
     for(auto && id : cellList){
         if(getCells().exists(id)){
-            Cell  & cell = m_patch->getCell(id);
+            Cell  & cell = getPatch()->getCell(id);
             long * conn = cell.getConnect();
             int nVloc = cell.getVertexCount();
             for(int i=0; i<nVloc; ++i)				ordV.insert(conn[i]);
@@ -1171,7 +1184,7 @@ livector1D MimmoObject::getCellFromVertexList(livector1D vertexList){
     std::unordered_set<long int> ordV, ordC;
     ordV.insert(vertexList.begin(), vertexList.end());
     //get conn from each cell of the list
-    for(auto & cell : m_patch->getCells()){
+    for(auto & cell : getPatch()->getCells()){
         int nVloc = cell.getVertexCount();
         auto locconn = cell.getConnect();
         int i=0;
@@ -1279,7 +1292,7 @@ livector1D 	MimmoObject::extractBoundaryVertexID(){
     std::unordered_set<long>::iterator it;
     std::unordered_set<long>::iterator itEnd;
     
-    for (const auto & cell : m_patch->getCells()){
+    for (const auto & cell : getPatch()->getCells()){
         const long * conn = cell.getConnect();
         int size = cell.getFaceCount();
 
@@ -1389,8 +1402,8 @@ int MimmoObject::checkCellType(bitpit::ElementType type){
  * \param[out] pmax highest bounding box point
  */
 void MimmoObject::getBoundingBox(std::array<double,3> & pmin, std::array<double,3> & pmax){
-    if(m_patch == NULL)   return;
-    m_patch->getBoundingBox(pmin,pmax);
+    if(getPatch() == NULL)   return;
+    getPatch()->getBoundingBox(pmin,pmax);
     return;
 }
 
@@ -1447,22 +1460,16 @@ void	MimmoObject::cleanKdTree(){
 bool MimmoObject::areAdjacenciesBuilt(){
     
     return(m_AdjBuilt);
-
-    /*
-    bool check = true;
-    
-    auto itp = getCells().cbegin();
-    
-    int cAdj = itp->getAdjacencyCount();
-    const long * adj = itp->getAdjacencies();
-    
-    for(int i=0; i<cAdj; ++i){
-        check = check && (adj[i] == -1);
-    }
-    
-    return !check;
-    */
 };
+
+/*!
+ * \return true if interfaces are built for your current mesh.
+ */
+bool MimmoObject::areInterfacesBuilt(){
+    
+    return(m_IntBuilt);
+};
+
 
 /*!
  * \return false if your mesh has open edges/faces. True otherwise
@@ -1496,6 +1503,14 @@ bool MimmoObject::isClosedLoop(){
 void MimmoObject::buildAdjacencies(){
     getPatch()->buildAdjacencies();
     m_AdjBuilt = true;
+};
+
+/*!
+ * Force the class to build cell-cell adjacency connectivity.
+ */
+void MimmoObject::buildInterfaces(){
+    getPatch()->buildInterfaces();
+    m_IntBuilt = true;
 };
 
 /*!

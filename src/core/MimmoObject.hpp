@@ -58,8 +58,9 @@ protected:
 //members
     int                                     m_type;            /**<Type of geometry (0 = undefined, 1 = surface mesh, 2 = volume mesh, 3-point cloud mesh, 4-3DCurve). */
     short int                               m_dimension;       /**<Dimensionality parameter 1-1D,2-2D and 3-3D. This parameter is only meant for volume mesh of type 2 to control its dimensionality */
-    bitpit::PatchKernel*                    m_patch;           /**<Reference to bitpit patch handling geometry. */
+    std::unique_ptr<bitpit::PatchKernel>    m_patch;           /**<Reference to bitpit patch handling geometry. */
     bool                                    m_internalPatch;   /**<True if the geometry is internally created. */
+    bitpit::PatchKernel *                   m_extpatch;	
     livector1D                              m_mapData;         /**<Map of vertex ids actually set, for aligning external vertex data to bitpit::PatchKernel ordering */
     livector1D                              m_mapCell;         /**<Map of cell ids actually set, for aligning external cell data to bitpit::PatchKernel ordering*/ 
     liimap                                  m_mapDataInv;      /**<Inverse of Map of vertex ids actually set, for aligning external vertex data to bitpit::Patch ordering */
@@ -78,8 +79,10 @@ protected:
     bool                                    m_kdTreeSync;    /**< set false if Bv tree is not sync'd with geometry modifications */
 
     bool                                    m_AdjBuilt;     /**< track correct building of adjacencies along with geometry modifications */
-
+    bool                                    m_IntBuilt;     /**< track correct building of interfaces along with geometry modifications */
     bitpit::Logger*                         m_log;          /**<Pointer to logger.*/
+
+    static int sm_MOCounter;/**< counter id of MimmoObject */
 
 public:
     MimmoObject(int type = 1, short int dimension = 3); 
@@ -109,6 +112,7 @@ public:
     const bitpit::PiercedVector<bitpit::Cell> &     getCells() const;
 
     bitpit::PatchKernel*                            getPatch();
+    const bitpit::PatchKernel*                            getPatch() const;
 
     livector1D&                                     getMapData();
     long                                            getMapData(int i);
@@ -176,8 +180,10 @@ public:
      */
     void        updateKdTree();
     void        buildAdjacencies();
-
+    void 	buildInterfaces();
+    
     bool        areAdjacenciesBuilt();
+    bool        areInterfacesBuilt();
     bool        isClosedLoop();
     
     bitpit::VTKElementType	desumeElement();

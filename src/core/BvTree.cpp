@@ -706,20 +706,16 @@ double signedDistance(std::array<double,3> *P_, BvTree *bvtree_, long &id, std::
             //signed distance only for patch with triangles or segments
             if ( nV == 3 )
             {
-                darray3E lambda ;
-                int flag;
-                ah_ = bitpit::CGElem::distancePointTriangle((*P_), VS[0], VS[1], VS[2], xP, lambda, flag);
+              
+                ah_ = bitpit::CGElem::distancePointTriangle((*P_), VS[0], VS[1], VS[2]);
             }
             else if ( nV == 2 )
             {
-                darray2E lambda ;
-                int flag;
-                ah_ = bitpit::CGElem::distancePointSegment((*P_), VS[0], VS[1], xP, lambda, flag);
+                ah_ = bitpit::CGElem::distancePointSegment((*P_), VS[0], VS[1]);
 
             }
             else{
-                int flag;
-                ah_ = bitpit::CGElem::distancePointSimplex((*P_), VS, xP, flag);
+                ah_ = bitpit::CGElem::distancePointPolygon((*P_), VS);
             }
 
             if ( ah_ < h )
@@ -754,8 +750,7 @@ double signedDistance(std::array<double,3> *P_, BvTree *bvtree_, long &id, std::
             if ( nV == 3 )
             {
                 darray3E lambda ;
-                int flag;
-                h = bitpit::CGElem::distancePointTriangle((*P_), VS[0], VS[1], VS[2], xP, lambda, flag);
+                h = bitpit::CGElem::distancePointTriangle((*P_), VS[0], VS[1], VS[2], lambda);
                 normal  = lambda[0] * spatch_->evalVertexNormal(id,0) ;
                 normal += lambda[1] * spatch_->evalVertexNormal(id,1) ;
                 normal += lambda[2] * spatch_->evalVertexNormal(id,2) ;
@@ -773,8 +768,7 @@ double signedDistance(std::array<double,3> *P_, BvTree *bvtree_, long &id, std::
             else if ( nV == 2 )
             {
                 darray2E lambda ;
-                int flag;
-                h = bitpit::CGElem::distancePointSegment((*P_), VS[0], VS[1], xP, lambda, flag);
+                h = bitpit::CGElem::distancePointSegment((*P_), VS[0], VS[1],lambda);
                 normal  = lambda[0] * spatch_->evalVertexNormal(id,0) ;
                 normal += lambda[1] * spatch_->evalVertexNormal(id,1) ;
                 s = sign( dotProduct(normal, (*P_) - xP) );
@@ -904,19 +898,14 @@ double distance(std::array<double,3> *P_, BvTree* bvtree_, long &id, double &r, 
 
             if ( nV == 3 )
             {
-                darray3E lambda ;
-                int flag;
-                ah_ = bitpit::CGElem::distancePointTriangle((*P_), VS[0], VS[1], VS[2], xP, lambda, flag);
+                ah_ = bitpit::CGElem::distancePointTriangle((*P_), VS[0], VS[1], VS[2]);
             }
             else if ( nV == 2 )
             {
-                darray2E lambda ;
-                int flag;
-                ah_ = bitpit::CGElem::distancePointSegment((*P_), VS[0], VS[1], xP, lambda, flag);
+                ah_ = bitpit::CGElem::distancePointSegment((*P_), VS[0], VS[1]);
             }
             else{
-                int flag;
-                ah_ = bitpit::CGElem::distancePointSimplex((*P_), VS, xP, flag);
+                ah_ = bitpit::CGElem::distancePointPolygon((*P_), VS);
             }
 
 

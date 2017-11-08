@@ -61,6 +61,13 @@ if(BUILD_LAURATESTS)
 	set(LAURATEST_LIST "")
     list(APPEND LAURATEST_LIST "test_example")
     list(APPEND LAURATEST_LIST "testmain")
+    list(APPEND LAURATEST_LIST "CalcoloOrto")
+    list(APPEND LAURATEST_LIST "ExampleQuaternion")
+    list(APPEND LAURATEST_LIST "ExamplePropagation")
+    list(APPEND LAURATEST_LIST "ExampleDifferentCOR")
+    list(APPEND LAURATEST_LIST "Naca0")
+
+
     
     foreach(LAURATEST_NAME IN LISTS LAURATEST_LIST)
         list(REMOVE_ITEM LAURACODE "${CMAKE_CURRENT_SOURCE_DIR}/${LAURATEST_NAME}.cpp")
@@ -100,6 +107,7 @@ if(BUILD_LAURATESTS)
     add_custom_command(
         TARGET "test_example" PRE_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/../geodata/planarquads_mimmo.vtu" "${CMAKE_CURRENT_BINARY_DIR}/geodata/planarquads_mimmo.vtu"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/../geodata/naca0012sq.vtu" "${CMAKE_CURRENT_BINARY_DIR}/geodata/naca0012sq.vtu"
     )
     
 
