@@ -454,6 +454,21 @@ if (ENABLE_MPI)
 endif()
 
 
+###      LAPACKE   ################################################
+# set(LAPACKE_STATIC 0 CACHE BOOL "Require LAPACKE static libraries")
+# mark_as_advanced(LAPACKE_STATIC)
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/external/LAPACKE/cmake")
+
+find_package(LAPACK REQUIRED)
+find_package(LAPACKE REQUIRED)
+unset(LAPACKEXT_DIR CACHE)
+
+list (APPEND MIMMO_EXTERNAL_LIBRARIES "${LAPACKE_LIBRARIES}" "${LAPACK_LIBRARIES}")
+list (APPEND MIMMO_EXTERNAL_INCLUDE_DIRECTORIES "${LAPACKE_INCLUDE_DIRS}" "${LAPACK_INCLUDE_DIRS}")
+
+
+
 # module further dependency
 isModuleEnabled("iovtk" MODULE_ENABLED1)
 isModuleEnabled("ioofoam" MODULE_ENABLED3)

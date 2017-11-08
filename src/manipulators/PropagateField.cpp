@@ -45,7 +45,7 @@ void PropagateField::setDefaults(){
     m_conn.clear();
     m_gamma        = 1.0;
     m_weights.clear();
-    m_laplace   = false;
+    m_laplace   = true;
     m_sstep     = 10;
     m_convergence = false;
     m_tol = 1.0e-05;
@@ -108,7 +108,7 @@ void PropagateField::swap(PropagateField & x) noexcept {
 //     std::swap(m_dumping, x.m_dumping);
     m_dumping.swap(x.m_dumping);
     std::swap(m_radius, x.m_radius);
-//    BaseManipulation::swap(x);
+    BaseManipulation::swap(x);
 }
 
 /*! 
@@ -117,8 +117,8 @@ void PropagateField::swap(PropagateField & x) noexcept {
 void
 PropagateField::buildPorts(){
     bool built = true;
-//    built = (built && createPortIn<MimmoObject*, PropagateField>(this, &PropagateField::setGeometry, M_GEOM, true));
-//    built = (built && createPortIn<MimmoObject*, PropagateField>(this, &PropagateField::setBoundarySurface, M_GEOM2));
+    built = (built && createPortIn<MimmoObject*, PropagateField>(this, &PropagateField::setGeometry, M_GEOM, true));
+    built = (built && createPortIn<MimmoObject*, PropagateField>(this, &PropagateField::setBoundarySurface, M_GEOM2));
     m_arePortsBuilt = built;
 };
 
@@ -210,12 +210,7 @@ PropagateField::setSmoothingSteps(int ns){
  * \param[in] solveLaplacian true for Laplacian problem solver (not available); false for iterative smoothing technique.
  */
 void PropagateField::setSolver(bool solveLaplacian){
-    //m_laplace = solveLaplacian;
-
-    //TODO REMOVE IT WHEN LAPLACIAN SOLVER IMPLEMENTED !!!
-    //Forced to smoothing
-    BITPIT_UNUSED(solveLaplacian);
-    m_laplace = false;
+    m_laplace = solveLaplacian;
 }
 
 /*!
@@ -372,6 +367,7 @@ PropagateField::computeWeights(){
         lweights /= sumdist;
         m_weights.insert(ID, lweights);
     }
+    if (!m_execPlot) m_dumping.clear();
 }
 
 
@@ -458,8 +454,8 @@ void PropagateVectorField::swap(PropagateVectorField & x) noexcept {
 void
 PropagateVectorField::buildPorts(){
     bool built = true;
-//    built = (built && createPortIn<dmpvecarr3E, PropagateVectorField>(this, &PropagateVectorField::setBoundaryConditions, M_GDISPLS));
-//    built = (built && createPortOut<dmpvecarr3E, PropagateVectorField>(this, &PropagateVectorField::getField, M_GDISPLS));
+    built = (built && createPortIn<dmpvecarr3E, PropagateVectorField>(this, &PropagateVectorField::setBoundaryConditions, M_GDISPLS));
+    built = (built && createPortOut<dmpvecarr3E, PropagateVectorField>(this, &PropagateVectorField::getField, M_GDISPLS));
     PropagateField::buildPorts();
     m_arePortsBuilt = built;
 };
@@ -499,19 +495,20 @@ PropagateVectorField::computeDumpingFunction(){
 
     if (m_geometry == NULL ) return;
 
-//    if (m_bc.getGeometry() != m_bsurface){
-//        throw std::runtime_error (m_name + " : boundary conditions not linked to boundary surface");
-//    }
-//    if (m_bc.getDataLocation() != mimmo::MPVLocation::POINT){
-//        throw std::runtime_error (m_name + " : boundary conditions not defined on points");
-//    }
+    if (m_bc.getGeometry() != m_bsurface){
+        throw std::runtime_error (m_name + " : boundary conditions not linked to boundary surface");
+    }
+    if (m_bc.getDataLocation() != mimmo::MPVLocation::POINT){
+        throw std::runtime_error (m_name + " : boundary conditions not defined on points");
+    }
 
     bitpit::PatchKernel * patch_ = getGeometry()->getPatch();
 
     double dist;
     long ID;
 
-    /*Maxdist should be the maximum distance between boundaries with zero values and
+    /* Maxdist should be the maximum distance between
+     * boundaries with zero values and
      * boundaries with values different from zero.
      */
     //TODO compute it
@@ -541,8 +538,7 @@ PropagateVectorField::computeDumpingFunction(){
         for (auto const & vertex : m_bsurface->getVertices()){
             ID = vertex.getId();
             if (norm2(m_bc[ID]) >= 1.0e-12){
-                point = vertex.getCoords();
-                activeBoundary->addVertex(point, ID);
+                activeBoundary->addVertex(vertex, ID);
             }
         }
         for (auto const & cell : m_bsurface->getCells()){
@@ -561,19 +557,13 @@ PropagateVectorField::computeDumpingFunction(){
             }
         }
         activeBoundary->buildAdjacencies();
-        activeBoundary->buildBvTree();
-        BvTree* tree = (activeBoundary->getBvTree());
+        activeBoundary->buildSkdTree();
+        bitpit::SurfaceSkdTree* tree = static_cast<bitpit::SurfaceSkdTree*>(activeBoundary->getSkdTree());
 
         for (auto const & vertex : patch_->getVertices()){
             ID = vertex.getId();
             point = vertex.getCoords();
-
-            double r = 1.E+18;
-            long id;
-            double d = bvTreeUtils::distance( &point, tree, id, r);
-
-//            dist = max(1.0e-08, tree->evalPointDistance(point));
-            dist = std::max(1.0e-08, d);
+            dist = max(1.0e-08, tree->evalPointDistance(point));
             val = std::max(1.0, std::pow((maxd/dist), m_dumpingFactor));
             m_dumping.insert(ID, val);
         }
@@ -646,8 +636,8 @@ PropagateVectorField::solveSmoothing(int nstep){
         }// end step
         (*m_log)<< m_name<<" ends field propagation."<<std::endl;
 
-//        m_field.setDataLocation(MPVLocation::POINT);
-//        m_field.setGeometry(getGeometry());
+        m_field.setDataLocation(MPVLocation::POINT);
+        m_field.setGeometry(getGeometry());
 
     }
 
@@ -661,6 +651,95 @@ PropagateVectorField::solveSmoothing(int nstep){
  */
 void
 PropagateVectorField::solveLaplace(){
+
+    m_field.clear();
+    for (auto vertex : getGeometry()->getVertices()){
+        long int ID = vertex.getId();
+        if (m_isbp[ID]){
+            m_field.insert(ID, m_bc[ID]);
+        }
+        else{
+            m_field.insert(ID, darray3E({0.0, 0.0, 0.0}));
+        }
+    }
+
+    liimap  dataInv = m_geometry->getMapDataInv();
+
+    // Create the system for solving the pressure
+    bool debug = false;
+    m_solver = std::unique_ptr<mimmo::SystemSolver>(new mimmo::SystemSolver(debug));
+
+    // Initialize the system
+    KSPOptions &solverOptions = m_solver->getKSPOptions();
+    solverOptions.nullspace = false;
+    solverOptions.rtol      = 1e-12;
+    solverOptions.subrtol   = 1e-12;
+
+    {
+        localivector2D stencils(m_conn.size());
+        localdvector2D weights(m_conn.size());
+        localdvector1D rhs(m_conn.size());
+
+        //Create stencils for petsc
+        for (auto vertex : getGeometry()->getVertices()){
+            long int ID = vertex.getId();
+            int ind = dataInv[ID];
+            if (m_isbp[ID]){
+                stencils[ind] = ivector1D(1, ind);
+                weights[ind] = dvector1D(1, 1.0);
+            }
+            else{
+                for (long IDN : m_conn[ID]){
+                    stencils[ind].push_back(dataInv[IDN]);
+                }
+                stencils[ind].push_back(ind);
+                weights[ind] = -1.0*m_weights[ID];
+                weights[ind].push_back(1.0);
+                rhs[ind] = 0.0;
+            }
+        }
+
+        m_weights.clear();
+        m_conn.clear();
+
+        //Loop on components
+        for (int icomp = 0; icomp < 3; icomp++){
+
+            for (auto vertex : getGeometry()->getVertices()){
+                long int ID = vertex.getId();
+                int ind = dataInv[ID];
+                if (m_isbp[ID]){
+                    rhs[ind] = m_bc[ID][icomp];
+                }
+            }
+
+#if ENABLE_MPI==1
+            m_solver->initialize(stencils, weights, rhs, ghosts);
+#else
+            m_solver->initialize(stencils, weights, rhs);
+#endif
+
+            // Solve the system
+            m_solver->solve();
+
+            // Get the solution
+            const double *solution = m_solver->getSolutionRawReadPtr();
+
+            for (auto vertex : getGeometry()->getVertices()){
+                long int ID = vertex.getId();
+                int ind = dataInv[ID];
+                m_field[ID][icomp] = solution[ind];
+            }
+
+            // Clear the solver
+             m_solver->clear();
+
+        }//end loop on components
+
+    }
+
+    m_field.setDataLocation(MPVLocation::POINT);
+    m_field.setGeometry(getGeometry());
 
 }
 
@@ -705,7 +784,7 @@ PropagateVectorField::plotOptionalResults(){
 void
 PropagateVectorField::apply(){
     if (getGeometry() == NULL) return;
-    if (getGeometry()->isEmpty() || m_field.size() == 0) return;
+    if (getGeometry()->isEmpty() || m_field.isEmpty()) return;
     darray3E vertexcoords;
     long int ID;
     for (const auto & vertex : m_geometry->getVertices()){
@@ -910,8 +989,8 @@ void PropagateScalarField::swap(PropagateScalarField & x) noexcept {
 void
 PropagateScalarField::buildPorts(){
     bool built = true;
-//    built = (built && createPortIn<dmpvector1D, PropagateScalarField>(this, &PropagateScalarField::setBoundaryConditions, M_FILTER));
-//    built = (built && createPortOut<dmpvector1D, PropagateScalarField>(this, &PropagateScalarField::getField, M_FILTER));
+    built = (built && createPortIn<dmpvector1D, PropagateScalarField>(this, &PropagateScalarField::setBoundaryConditions, M_FILTER));
+    built = (built && createPortOut<dmpvector1D, PropagateScalarField>(this, &PropagateScalarField::getField, M_FILTER));
     PropagateField::buildPorts();
     m_arePortsBuilt = built;
 };
@@ -951,12 +1030,12 @@ PropagateScalarField::computeDumpingFunction(){
 
     if (m_geometry == NULL ) return;
 
-//    if (m_bc.getGeometry() != m_bsurface){
-//        throw std::runtime_error (m_name + " : boundary conditions not linked to boundary surface");
-//    }
-//    if (m_bc.getDataLocation() != mimmo::MPVLocation::POINT){
-//        throw std::runtime_error (m_name + " : boundary conditions not defined on points");
-//    }
+    if (m_bc.getGeometry() != m_bsurface){
+        throw std::runtime_error (m_name + " : boundary conditions not linked to boundary surface");
+    }
+    if (m_bc.getDataLocation() != mimmo::MPVLocation::POINT){
+        throw std::runtime_error (m_name + " : boundary conditions not defined on points");
+    }
 
     bitpit::PatchKernel * patch_ = getGeometry()->getPatch();
 
@@ -993,8 +1072,7 @@ PropagateScalarField::computeDumpingFunction(){
         for (auto const & vertex : m_bsurface->getVertices()){
             ID = vertex.getId();
             if (std::abs(m_bc[ID]) >= 1.0e-12){
-                point = vertex.getCoords();
-                activeBoundary->addVertex(point, ID);
+                activeBoundary->addVertex(vertex, ID);
             }
         }
         for (auto const & cell : m_bsurface->getCells()){
@@ -1013,20 +1091,13 @@ PropagateScalarField::computeDumpingFunction(){
             }
         }
         activeBoundary->buildAdjacencies();
-        activeBoundary->buildBvTree();
-        BvTree* tree = (activeBoundary->getBvTree());
+        activeBoundary->buildSkdTree();
+        bitpit::SurfaceSkdTree* tree = static_cast<bitpit::SurfaceSkdTree*>(activeBoundary->getSkdTree());
 
         for (auto const & vertex : patch_->getVertices()){
             ID = vertex.getId();
             point = vertex.getCoords();
-
-            double r = 1.E+18;
-            long id;
-            double d = bvTreeUtils::distance( &point, tree, id, r);
-
-//            dist = max(1.0e-08, tree->evalPointDistance(point));
-            dist = std::max(1.0e-08, d);
-
+            dist = max(1.0e-08, tree->evalPointDistance(point));
             val = std::max(1.0, std::pow((maxd/dist), m_dumpingFactor));
             m_dumping.insert(ID, val);
         }
@@ -1097,8 +1168,8 @@ PropagateScalarField::solveSmoothing(int nstep){
         }// end step
         (*m_log)<< m_name<<" ends field propagation."<<std::endl;
 
-//        m_field.setDataLocation(MPVLocation::POINT);
-//        m_field.setGeometry(getGeometry());
+        m_field.setDataLocation(MPVLocation::POINT);
+        m_field.setGeometry(getGeometry());
     }
 
     m_conn.clear();
@@ -1111,7 +1182,87 @@ PropagateScalarField::solveSmoothing(int nstep){
  */
 void
 PropagateScalarField::solveLaplace(){
+
+    m_field.clear();
+    for (auto vertex : getGeometry()->getVertices()){
+        long int ID = vertex.getId();
+        if (m_isbp[ID]){
+            m_field.insert(ID, m_bc[ID]);
+        }
+        else{
+            m_field.insert(ID, 0.0);
+        }
+    }
+
+    liimap  dataInv = m_geometry->getMapDataInv();
+
+    // Create the system for solving the pressure
+    bool debug = false;
+    m_solver = std::unique_ptr<mimmo::SystemSolver>(new mimmo::SystemSolver(debug));
+
+    // Initialize the system
+    KSPOptions &solverOptions = m_solver->getKSPOptions();
+    solverOptions.nullspace = false;
+    solverOptions.rtol      = 1e-12;
+    solverOptions.subrtol   = 1e-12;
+
+    {
+        localivector2D stencils(m_conn.size());
+        localdvector2D weights(m_conn.size());
+        localdvector1D rhs(m_conn.size());
+
+        //Create stencils for petsc
+        for (auto vertex : getGeometry()->getVertices()){
+            long int ID = vertex.getId();
+            int ind = dataInv[ID];
+            if (m_isbp[ID]){
+                stencils[ind] = ivector1D(1, ind);
+                weights[ind] = dvector1D(1, 1.0);
+                rhs[ind] = m_bc[ID];
+            }
+            else{
+                for (long IDN : m_conn[ID]){
+                    stencils[ind].push_back(dataInv[IDN]);
+                }
+                stencils[ind].push_back(ind);
+                weights[ind] = -1.0*m_weights[ID];
+                weights[ind].push_back(1.0);
+                rhs[ind] = 0.0;
+            }
+        }
+
+        m_weights.clear();
+        m_conn.clear();
+        m_bc.clear();
+
+#if ENABLE_MPI==1
+            m_solver->initialize(stencils, weights, rhs, ghosts);
+#else
+            m_solver->initialize(stencils, weights, rhs);
+#endif
+
+            // Solve the system
+            m_solver->solve();
+
+            // Get the solution
+            const double *solution = m_solver->getSolutionRawReadPtr();
+
+            for (auto vertex : getGeometry()->getVertices()){
+                long int ID = vertex.getId();
+                int ind = dataInv[ID];
+                m_field[ID] = solution[ind];
+            }
+
+            // Clear the solver
+            m_solver->clear();
+
+    }
+
+    m_field.setDataLocation(MPVLocation::POINT);
+    m_field.setGeometry(getGeometry());
+
 }
+
 
 /*!
  * Plot optional results on vtu unstructured grid file

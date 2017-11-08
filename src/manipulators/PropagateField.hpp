@@ -25,17 +25,9 @@
 #define __PROPAGATEFIELD_HPP__
 
 #include "BaseManipulation.hpp"
+#include "system.hpp"
 
 namespace mimmo{
-
-typedef bitpit::PiercedVector<bool> bmpvector1D;
-typedef bitpit::PiercedVector<long> limpvector1D;
-typedef bitpit::PiercedVector<double> dmpvector1D;
-typedef bitpit::PiercedVector<std::vector<long>> limpvector2D;
-typedef bitpit::PiercedVector<std::vector<double>> dmpvector2D;
-typedef bitpit::PiercedVector<std::array<double, 3>> dmpvecarr3E;
-
-
 /*!
  * \class PropagateField
  * \ingroup core
@@ -114,6 +106,9 @@ protected:
     dmpvector1D   m_dumping;         /**<Dumping field used for weights computing.*/
     double        m_radius;          /**<Support radius of dumping function. At distance = m_radius from boundary with bc != 0
                                          the stencil during the laplacian computing is the original one.*/
+
+    std::unique_ptr<mimmo::SystemSolver> m_solver;
+
 
 public:
 
@@ -350,13 +345,13 @@ private:
 
 };
 
-//REGISTER_PORT(M_GEOM, MC_SCALAR, MD_MIMMO_,__PROPAGATEFIELD_HPP__)
-//REGISTER_PORT(M_GEOM2, MC_SCALAR, MD_MIMMO_,__PROPAGATEFIELD_HPP__)
-//REGISTER_PORT(M_FILTER, MC_MPVECTOR, MD_FLOAT,__PROPAGATEFIELD_HPP__)
-//REGISTER_PORT(M_GDISPLS, MC_MPVECARR3, MD_FLOAT,__PROPAGATEFIELD_HPP__)
-//
-//REGISTER(BaseManipulation, PropagateScalarField, "mimmo.PropagateScalarField")
-//REGISTER(BaseManipulation, PropagateVectorField, "mimmo.PropagateVectorField")
+REGISTER_PORT(M_GEOM, MC_SCALAR, MD_MIMMO_,__PROPAGATEFIELD_HPP__)
+REGISTER_PORT(M_GEOM2, MC_SCALAR, MD_MIMMO_,__PROPAGATEFIELD_HPP__)
+REGISTER_PORT(M_FILTER, MC_MPVECTOR, MD_FLOAT,__PROPAGATEFIELD_HPP__)
+REGISTER_PORT(M_GDISPLS, MC_MPVECARR3, MD_FLOAT,__PROPAGATEFIELD_HPP__)
+
+REGISTER(BaseManipulation, PropagateScalarField, "mimmo.PropagateScalarField")
+REGISTER(BaseManipulation, PropagateVectorField, "mimmo.PropagateVectorField")
 
 };
 
