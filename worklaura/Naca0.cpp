@@ -127,6 +127,16 @@ void test1(){
     extractBorders (m_patch, objBord);					//Estraendo ora i bordi del corpo non deformato
     objBord->getPatch()->write("objBord");//Bordi del corpo non deformato
 
+    //Metodo per estrazione della sola parte del  bordo che mi interessa (profilo) dati tutti i bordi
+
+    SelectionByBox * selector = new SelectionByBox();
+    selector->setOrigin( {{ 0.5, 0.0, 0.0}} );
+    selector->setSpan( {{ 2.0, 0.2 , 0.6}} );
+    selector->setGeometry(objBord);
+    selector->execute();
+
+    MimmoObject * objB_Def = selector->getPatch();
+
     PatchKernel* m_patch1 = obj_d->getPatch();
 
     bitpit::PiercedVector<bitpit::Interface>  it_0 = getBorderInterfaces(obj_d->getPatch());				//Estraggo le interfacce di bordo del MimmoObject deformato
@@ -380,7 +390,7 @@ void test1(){
         propT->setBoundarySurface(objBord);
         propT->setBoundaryConditions(Trasl);
         propT->setPlotInExecution(true);
-        propT->setBoundaryDumping(objBord);
+        propT->setBoundaryDumping(objB_Def);
         propT->setDumpingFactor(3.);
         propT->setDumpingRadius(0.1);
         std::cout << "Propagate Translation" << std::endl;
@@ -394,7 +404,7 @@ void test1(){
         propR->setBoundarySurface(objBord);
         propR->setBoundaryConditions(Rot);
         propR->setPlotInExecution(true);
-        propR->setBoundaryDumping(objBord);
+        propR->setBoundaryDumping(objB_Def);
         propR->setDumpingFactor(3.);
         propR->setDumpingRadius(0.1);
         std::cout << "Propagate Rotation" << std::endl;
@@ -434,6 +444,7 @@ void test1(){
     delete obj_round;
     delete mimmo0;
     delete mimmo0_Copy;
+    delete selector;
 }
 
 int test() {
