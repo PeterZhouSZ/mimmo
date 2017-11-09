@@ -110,6 +110,7 @@ protected:
     bool          m_convergence;     /**<Convergence flag. If true the laplacian smoothing is solved until convergences is reached [default false].  */
     double        m_tol;             /**<Convergence tolerance. [default tol = 1.0e-05 on maximum differences (relative to maximum value on boundary conditions) of solution between two iterations].*/
     MimmoObject*  m_bsurface;        /**<Pointer to MimmoObject with boundaries vertices.*/
+    MimmoObject*  m_dsurface;
     bool          m_bPointsToCompute;/**<Auxiliary variable to compute bPoints at right time.*/
     double        m_dumpingFactor;   /**<Dumping exponential factor for weights computing (0.0 = dumping inactive).*/
     dmpvector1D   m_dumping;         /**<Dumping field used for weights computing.*/
@@ -134,6 +135,7 @@ public:
 
     void    setGeometry(MimmoObject * geometry_);
     void    setBoundarySurface(MimmoObject*);
+    void    setBoundaryDumping(MimmoObject*);
     void    setWeightConstant(double gamma);
     void    setSmoothingSteps(int ns);
 

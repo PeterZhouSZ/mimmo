@@ -289,6 +289,7 @@ Quaternion expQuat ( Quaternion & x)
    if (norm2(u) > 1.0e-18) u /=norm2(u);				//Normalizzo solo se la norma e' diversa da zero
    Q = Quaternion(angle,u);
    T = minQuats(P_D, RotQuats(P_U, Q, COR));
+
    }
 
    

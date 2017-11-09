@@ -184,6 +184,15 @@ PropagateField::setBoundarySurface(MimmoObject* bsurface){
     m_bPointsToCompute = false;
 }
 
+void
+PropagateField::setBoundaryDumping(MimmoObject* dsurface){
+    if (dsurface == NULL) return;
+    int type = dsurface->getType();
+    if ( type != 1 && type != 2 && type != 3 && type != 4) return;
+
+    m_dsurface = dsurface;
+}
+
 /*! 
  * It sets the weight constant used in stencil computing. The constant (gamma) is used
  * to scale an exponential distance function taken as weight function in the stencil computing
@@ -517,6 +526,7 @@ PropagateVectorField::computeDumpingFunction(){
     m_dumping.clear();
     darray3E point;
     double val;
+
     if (m_dumpingFactor <= 1.0e-12){
         for (auto const & vertex : patch_->getVertices()){
             ID = vertex.getId();
@@ -525,46 +535,12 @@ PropagateVectorField::computeDumpingFunction(){
     }
     else{
 
-        int dim = m_bsurface->getPatch()->getDimension();
-
-        std::unique_ptr<MimmoObject> activeBoundary;
-        if (dim == 2){
-            activeBoundary = std::unique_ptr<MimmoObject>(new MimmoObject(1));
-        }
-        else if (dim == 1){
-            activeBoundary = std::unique_ptr<MimmoObject>(new MimmoObject(4));
-        }
-
-        for (auto const & vertex : m_bsurface->getVertices()){
-            ID = vertex.getId();
-            if (norm2(m_bc[ID]) >= 1.0e-12){
-                point = vertex.getCoords();
-                activeBoundary->addVertex(point, ID);
-            }
-        }
-        for (auto const & cell : m_bsurface->getCells()){
-            ID = cell.getId();
-            bitpit::ConstProxyVector<long> vconn = cell.getVertexIds();
-            bool toinsert = true;
-            for (const auto & iV : vconn){
-                if (norm2(m_bc[iV]) < 1.0e-12){
-                    toinsert = false;
-                    break;
-                }
-            }
-            if (toinsert){
-                auto conn = m_bsurface->getCellConnectivity(ID);
-                activeBoundary->addConnectedCell(conn, cell.getType());
-            }
-        }
-        activeBoundary->buildAdjacencies();
-        activeBoundary->buildBvTree();
-        BvTree* tree = (activeBoundary->getBvTree());
+        m_dsurface->buildBvTree();
+        BvTree* tree = (m_dsurface->getBvTree());
 
         for (auto const & vertex : patch_->getVertices()){
             ID = vertex.getId();
             point = vertex.getCoords();
-//            dist = max(1.0e-08, tree->evalPointDistance(point));
             long id;
             double r = 1.0e+18;
             dist = std::max(1.0e-08, bvTreeUtils::distance(&point, tree, id, r));
@@ -1034,12 +1010,6 @@ PropagateScalarField::computeDumpingFunction(){
 
     if (m_geometry == NULL ) return;
 
-//    if (m_bc.getGeometry() != m_bsurface){
-//        throw std::runtime_error (m_name + " : boundary conditions not linked to boundary surface");
-//    }
-//    if (m_bc.getDataLocation() != mimmo::MPVLocation::POINT){
-//        throw std::runtime_error (m_name + " : boundary conditions not defined on points");
-//    }
 
     bitpit::PatchKernel * patch_ = getGeometry()->getPatch();
 
@@ -1063,46 +1033,11 @@ PropagateScalarField::computeDumpingFunction(){
     }
     else{
 
-        int dim = m_bsurface->getPatch()->getDimension();
-
-        std::unique_ptr<MimmoObject> activeBoundary;
-        if (dim == 2){
-            activeBoundary = std::unique_ptr<MimmoObject>(new MimmoObject(1));
-        }
-        else if (dim == 1){
-            activeBoundary = std::unique_ptr<MimmoObject>(new MimmoObject(4));
-        }
-
-        for (auto const & vertex : m_bsurface->getVertices()){
-            ID = vertex.getId();
-            if (std::abs(m_bc[ID]) >= 1.0e-12){
-                point = vertex.getCoords();
-                activeBoundary->addVertex(point, ID);
-            }
-        }
-        for (auto const & cell : m_bsurface->getCells()){
-            ID = cell.getId();
-            bitpit::ConstProxyVector<long> vconn = cell.getVertexIds();
-            bool toinsert = true;
-            for (const auto & iV : vconn){
-                if (std::abs(m_bc[iV]) < 1.0e-12){
-                    toinsert = false;
-                    break;
-                }
-            }
-            if (toinsert){
-                auto conn = m_bsurface->getCellConnectivity(ID);
-                activeBoundary->addConnectedCell(conn, cell.getType());
-            }
-        }
-        activeBoundary->buildAdjacencies();
-        activeBoundary->buildBvTree();
-        BvTree* tree = (activeBoundary->getBvTree());
+        BvTree* tree = (m_dsurface->getBvTree());
 
         for (auto const & vertex : patch_->getVertices()){
             ID = vertex.getId();
             point = vertex.getCoords();
-//            dist = max(1.0e-08, tree->evalPointDistance(point));
             long id;
             double r = 1.0e+18;
             dist = std::max(1.0e-08, bvTreeUtils::distance(&point, tree, id, r));
