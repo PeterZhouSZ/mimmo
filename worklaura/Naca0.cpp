@@ -58,7 +58,7 @@ void evalDef (MimmoGeometry*  geom ){
     mrbf->setSupportRadius(0.0003);
     mrbf->setPlotInExecution(true);
     mrbf->setNode(rbfNodes);
-    mrbf->setFunction(bitpit::RBFBasisFunction::LINEAR);
+//    mrbf->setFunction(bitpit::RBFBasisFunction::LINEAR);
     mrbf->setDisplacements(displ);
 
     /* Create applier block.
@@ -395,7 +395,7 @@ void test1(){
         propT->setDumpingRadius(0.1);
         std::cout << "Propagate Translation" << std::endl;
         propT->setSolver(true);
-        propT->setSmoothingSteps(100);
+//        propT->setSmoothingSteps(100);
         propT->exec();
         Trasl = propT->getField();
 
@@ -409,7 +409,7 @@ void test1(){
         propR->setDumpingRadius(0.1);
         std::cout << "Propagate Rotation" << std::endl;
         propR->setSolver(true);
-        propR->setSmoothingSteps(100);
+//        propR->setSmoothingSteps(100);
         propR->exec();
         Rot = propR->getField();
 
