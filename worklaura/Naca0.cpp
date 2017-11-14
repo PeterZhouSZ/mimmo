@@ -51,14 +51,14 @@ void evalDef (MimmoGeometry*  geom ){
      */
     dvecarr3E rbfNodes(1,{{1.0,0.0,5.3522e-08}});
     //    dvecarr3E displ(1,{{0.0,0.0,-0.05}});
-    dvecarr3E displ(1,{{0.0,0.0,-0.05}});
+    dvecarr3E displ(1,{{0.0,0.0,-0.2}});
 
     MRBF* mrbf = new MRBF();
     mrbf->setMode(MRBFSol::NONE);
     mrbf->setSupportRadius(0.0003);
     mrbf->setPlotInExecution(true);
     mrbf->setNode(rbfNodes);
-//    mrbf->setFunction(bitpit::RBFBasisFunction::LINEAR);
+    mrbf->setFunction(bitpit::RBFBasisFunction::LINEAR);
     mrbf->setDisplacements(displ);
 
     /* Create applier block.
@@ -391,8 +391,9 @@ void test1(){
         propT->setBoundaryConditions(Trasl);
         propT->setPlotInExecution(true);
         propT->setBoundaryDumping(objB_Def);
-//        propT->setDumpingFactor(3.);
-//        propT->setDumpingRadius(0.1);
+//        propT->setDumpingFactor(1.);
+//        propT->setDumpingRadius(500.);
+//        propT->setDumpingPlateau(1.);
         std::cout << "Propagate Translation" << std::endl;
         propT->setSolver(true);
 //        propT->setSmoothingSteps(100);
@@ -405,8 +406,9 @@ void test1(){
         propR->setBoundaryConditions(Rot);
         propR->setPlotInExecution(true);
         propR->setBoundaryDumping(objB_Def);
-//        propR->setDumpingFactor(3.);
-//        propR->setDumpingRadius(0.1);
+//        propR->setDumpingFactor(1.);
+//        propR->setDumpingRadius(500.);
+//        propR->setDumpingPlateau(1.);
         std::cout << "Propagate Rotation" << std::endl;
         propR->setSolver(true);
 //        propR->setSmoothingSteps(100);

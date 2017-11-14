@@ -54,6 +54,7 @@ void PropagateField::setDefaults(){
     m_dumpingFactor = 0.0;
     m_dumping.clear();
     m_radius = 0.0;
+    m_plateau = 0.0;
 }
 
 /*!
@@ -82,6 +83,7 @@ PropagateField::PropagateField(const PropagateField & other):BaseManipulation(ot
     m_dumping      = other.m_dumping;
     m_dumpingFactor= other.m_dumpingFactor;
     m_radius       = other.m_radius;
+    m_plateau       = other.m_plateau;
 };
 
 /*!
@@ -108,6 +110,7 @@ void PropagateField::swap(PropagateField & x) noexcept {
 //     std::swap(m_dumping, x.m_dumping);
     m_dumping.swap(x.m_dumping);
     std::swap(m_radius, x.m_radius);
+    std::swap(m_plateau, x.m_plateau);
 //    BaseManipulation::swap(x);
 }
 
@@ -238,6 +241,15 @@ PropagateField::setDumpingFactor(double dump){
 void
 PropagateField::setDumpingRadius(double radius){
     m_radius = radius;
+}
+
+/*!
+ * Set the dumping minimum radius (dumping function constant inside the minimum radius -> plateau).
+ * \param[in] radius Internal support radius of dumping function.
+ */
+void
+PropagateField::setDumpingPlateau(double radius){
+    m_plateau = radius;
 }
 
 /*! 
@@ -379,6 +391,150 @@ PropagateField::computeWeights(){
     if (!m_execPlot) m_dumping.clear();
 }
 
+/*!
+ * It computes the dumping function used in weights computation.
+ */
+void
+PropagateField::computeDumpingFunction(){
+
+    if (m_geometry == NULL ) return;
+
+//    if (m_bc.getGeometry() != m_bsurface){
+//        throw std::runtime_error (m_name + " : boundary conditions not linked to boundary surface");
+//    }
+//    if (m_bc.getDataLocation() != mimmo::MPVLocation::POINT){
+//        throw std::runtime_error (m_name + " : boundary conditions not defined on points");
+//    }
+
+    bitpit::PatchKernel * patch_ = getGeometry()->getPatch();
+
+    double dist;
+    long ID;
+
+    /* Maxdist should be the maximum distance between
+     * boundaries with zero values and
+     * boundaries with values different from zero.
+     */
+    //TODO compute it
+    double maxd = m_radius;
+
+    m_dumping.clear();
+    darray3E point;
+    double val;
+
+    if (m_dumpingFactor <= 1.0e-12){
+        for (auto const & vertex : patch_->getVertices()){
+            ID = vertex.getId();
+            m_dumping.insert(ID, 1.0);
+        }
+    }
+    else{
+
+        //Dumping with volume
+        //init
+        double volmax = 0.0;
+        double volmin = 1.0e+18;
+        bitpit::PiercedVector<double> volumes;
+        bitpit::PiercedVector<double> AR;
+        double vol;
+        double vv, tau;
+
+        for (auto const & vertex : patch_->getVertices()){
+            ID = vertex.getId();
+            m_dumping.insert(ID, 0.0);
+            AR.insert(ID, 0.0);
+        }
+        for (auto const & cell : patch_->getCells()){
+            vol = static_cast<bitpit::VolumeKernel*>(patch_)->evalCellVolume(cell.getId());
+            volmax = std::max(volmax, vol);
+            volmin = std::min(volmin, vol);
+            volumes.insert(cell.getId(), vol);
+        }
+        vv = volmax-volmin;
+
+        //build interface
+        patch_->buildInterfaces();
+        for (auto const & cell : patch_->getCells()){
+
+            //aspect ratio
+            int facecount;
+            double areamax = 0.0;
+            double areamin = 1.0e+18;
+
+            long cellId = cell.getId();
+            int nCellInterfaces = cell.getInterfaceCount();
+            const long *interfaces = cell.getInterfaces();
+
+            for (int k = 0; k < nCellInterfaces; ++k) {
+                long interfaceId = interfaces[k];
+                const bitpit::Interface &interface = patch_->getInterface(interfaceId);
+                double area = static_cast<bitpit::VolumeKernel*>(patch_)->evalInterfaceArea(interfaceId);
+                areamax = std::max(areamax, area);
+                areamin = std::min(areamin, area);
+            }
+
+
+            //tau with volume
+            int vcount = cell.getVertexCount();
+            const long* vconn;
+            vconn = cell.getConnect();
+            tau = 1 + vv / volumes[cell.getId()];
+
+            for (int iv=0; iv<vcount; iv++){
+                ID = vconn[iv];
+                AR[ID] = std::max(AR[ID], areamax/areamin);
+                m_dumping[ID] = std::max(m_dumping[ID], tau);
+            }
+        }
+
+        for (auto const & vertex : patch_->getVertices()){
+            ID = vertex.getId();
+            m_dumping[ID] = m_dumping[ID]*AR[ID];
+        }
+
+
+        //MODULATE DUMPING WITH DISTANCE
+        m_dsurface->buildBvTree();
+        BvTree* tree = (m_dsurface->getBvTree());
+
+        double valmax = std::pow((maxd/m_plateau), m_dumpingFactor);
+        for (auto const & vertex : patch_->getVertices()){
+            ID = vertex.getId();
+            point = vertex.getCoords();
+            long id;
+            double r = 1.0e+18;
+//            dist = std::max(m_plateau, bvTreeUtils::distance(&point, tree, id, r));
+            dist = bvTreeUtils::distance(&point, tree, id, r);
+            if (dist >= maxd){
+                val = 0.;
+            }
+            else if (dist <= m_plateau){
+                val = 1.;
+            }
+            else{
+                val = (std::pow((maxd/dist), m_dumpingFactor) -1.) / valmax;
+            }
+            m_dumping[ID] = std::pow(m_dumping[ID], val);
+        }
+
+        //OLD DUMPING WITH DISTANCE
+/*        m_dsurface->buildBvTree();
+        BvTree* tree = (m_dsurface->getBvTree());
+
+        for (auto const & vertex : patch_->getVertices()){
+            ID = vertex.getId();
+            point = vertex.getCoords();
+            long id;
+            double r = 1.0e+18;
+            dist = std::max(1.0e-08, bvTreeUtils::distance(&point, tree, id, r));
+            val = std::max(1.0, std::pow((maxd/dist), m_dumpingFactor));
+            m_dumping.insert(ID, val);
+        }
+*/
+
+    }
+}
+
 
 //--------------------------------------
 //--------------------------------------
@@ -495,60 +651,6 @@ PropagateVectorField::clear(){
     PropagateField::clear();
     setDefaults();
 };
-
-/*!
- * It computes the dumping function used in weights computation.
- */
-void
-PropagateVectorField::computeDumpingFunction(){
-
-    if (m_geometry == NULL ) return;
-
-//    if (m_bc.getGeometry() != m_bsurface){
-//        throw std::runtime_error (m_name + " : boundary conditions not linked to boundary surface");
-//    }
-//    if (m_bc.getDataLocation() != mimmo::MPVLocation::POINT){
-//        throw std::runtime_error (m_name + " : boundary conditions not defined on points");
-//    }
-
-    bitpit::PatchKernel * patch_ = getGeometry()->getPatch();
-
-    double dist;
-    long ID;
-
-    /* Maxdist should be the maximum distance between
-     * boundaries with zero values and
-     * boundaries with values different from zero.
-     */
-    //TODO compute it
-    double maxd = m_radius;
-
-    m_dumping.clear();
-    darray3E point;
-    double val;
-
-    if (m_dumpingFactor <= 1.0e-12){
-        for (auto const & vertex : patch_->getVertices()){
-            ID = vertex.getId();
-            m_dumping.insert(ID, 1.0);
-        }
-    }
-    else{
-
-        m_dsurface->buildBvTree();
-        BvTree* tree = (m_dsurface->getBvTree());
-
-        for (auto const & vertex : patch_->getVertices()){
-            ID = vertex.getId();
-            point = vertex.getCoords();
-            long id;
-            double r = 1.0e+18;
-            dist = std::max(1.0e-08, bvTreeUtils::distance(&point, tree, id, r));
-            val = std::max(1.0, std::pow((maxd/dist), m_dumpingFactor));
-            m_dumping.insert(ID, val);
-        }
-    }
-}
 
 /*!
  * It applies a smoothing filter for a defined number of step.
@@ -1002,50 +1104,50 @@ PropagateScalarField::clear(){
     setDefaults();
 };
 
-/*!
- * It computes the dumping function used in weights computation.
- */
-void
-PropagateScalarField::computeDumpingFunction(){
-
-    if (m_geometry == NULL ) return;
-
-
-    bitpit::PatchKernel * patch_ = getGeometry()->getPatch();
-
-    double dist;
-    long ID;
-
-    /*Maxdist should be the maximum distance between boundaries with zero values and
-     * boundaries with values different from zero.
-     */
-    //TODO compute it
-    double maxd = m_radius;
-
-    m_dumping.clear();
-    darray3E point;
-    double val;
-    if (m_dumpingFactor <= 1.0e-12){
-        for (auto const & vertex : patch_->getVertices()){
-            ID = vertex.getId();
-            m_dumping.insert(ID, 1.0);
-        }
-    }
-    else{
-
-        BvTree* tree = (m_dsurface->getBvTree());
-
-        for (auto const & vertex : patch_->getVertices()){
-            ID = vertex.getId();
-            point = vertex.getCoords();
-            long id;
-            double r = 1.0e+18;
-            dist = std::max(1.0e-08, bvTreeUtils::distance(&point, tree, id, r));
-            val = std::max(1.0, std::pow((maxd/dist), m_dumpingFactor));
-            m_dumping.insert(ID, val);
-        }
-    }
-}
+///*!
+// * It computes the dumping function used in weights computation.
+// */
+//void
+//PropagateScalarField::computeDumpingFunction(){
+//
+//    if (m_geometry == NULL ) return;
+//
+//
+//    bitpit::PatchKernel * patch_ = getGeometry()->getPatch();
+//
+//    double dist;
+//    long ID;
+//
+//    /*Maxdist should be the maximum distance between boundaries with zero values and
+//     * boundaries with values different from zero.
+//     */
+//    //TODO compute it
+//    double maxd = m_radius;
+//
+//    m_dumping.clear();
+//    darray3E point;
+//    double val;
+//    if (m_dumpingFactor <= 1.0e-12){
+//        for (auto const & vertex : patch_->getVertices()){
+//            ID = vertex.getId();
+//            m_dumping.insert(ID, 1.0);
+//        }
+//    }
+//    else{
+//
+//        BvTree* tree = (m_dsurface->getBvTree());
+//
+//        for (auto const & vertex : patch_->getVertices()){
+//            ID = vertex.getId();
+//            point = vertex.getCoords();
+//            long id;
+//            double r = 1.0e+18;
+//            dist = std::max(1.0e-08, bvTreeUtils::distance(&point, tree, id, r));
+//            val = std::max(1.0, std::pow((maxd/dist), m_dumpingFactor));
+//            m_dumping.insert(ID, val);
+//        }
+//    }
+//}
 
 /*!
  * It applies a smoothing filter for a defined number of step.

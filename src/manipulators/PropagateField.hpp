@@ -116,6 +116,8 @@ protected:
     dmpvector1D   m_dumping;         /**<Dumping field used for weights computing.*/
     double        m_radius;          /**<Support radius of dumping function. At distance = m_radius from boundary with bc != 0
                                          the stencil during the laplacian computing is the original one.*/
+    double        m_plateau;
+
 
     std::unique_ptr<mimmo::SystemSolver> m_solver;
 
@@ -142,6 +144,7 @@ public:
     void    setSolver(bool solveLaplacian);
     void    setDumpingFactor(double dump);
     void    setDumpingRadius(double radius);
+    void    setDumpingPlateau(double radius);
     void    setConvergence(bool convergence);
     void    setTolerance(double tol);
 
@@ -155,7 +158,7 @@ protected:
     void        computeConnectivity();
     void        computeWeights();
     /*!Compute dumping function.*/
-    virtual void computeDumpingFunction() = 0;
+    void computeDumpingFunction();
     /*!Propagate field with a "Laplacian smoothing" iterative solver*/
     virtual void solveSmoothing(int nstep) = 0;
     /*!Propagate field solving directly the Laplace equation */ 
@@ -246,7 +249,7 @@ private:
     void setDefaults();
 
     //execute
-    void computeDumpingFunction();
+//    void computeDumpingFunction();
     void solveSmoothing(int nstep);
     void solveLaplace();
 
@@ -342,7 +345,7 @@ private:
     void setDefaults();
 
     //execute
-    void computeDumpingFunction();
+//    void computeDumpingFunction();
     void solveSmoothing(int nstep);
     void solveLaplace();
 

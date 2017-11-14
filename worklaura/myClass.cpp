@@ -287,8 +287,8 @@ Quaternion expQuat ( Quaternion & x)
      angle = std::acos(a);				//angle=cos^-1(n_u*n_d)   
    std::array<double, 3> u = crossProduct(n_u, n_d);			//u = n_u x n_d
    if (norm2(u) > 1.0e-18) u /=norm2(u);				//Normalizzo solo se la norma e' diversa da zero
-//   Q = Quaternion(angle,u);
-   Q = Quaternion(0.0,{0.0, 0.0, 0.0});
+   Q = Quaternion(angle,u);
+//   Q = Quaternion(0.0,{0.0, 0.0, 0.0});
    T = minQuats(P_D, RotQuats(P_U, Q, COR));
 
    }
